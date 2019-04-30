@@ -14,27 +14,27 @@ def max_entropy(hist):
     of the Histogram", Graphical Models and Image Processing, 29(3): 273-285
     参考：https://github.com/zenr/ippy/blob/master/segmentation/max_entropy.py
     Params:
-        hist [np.array]: Sequence representing the histogram of the image
+        hist [np.array]: 图像灰度直方图。（未归一化的）
     Return:
-        threshold [int]: threshold calculated by 最大熵算法
+        threshold [int]: threshold calculated by 一维最大熵算法
     """
 
-    # calculate CDF (cumulative density function)
+    # calculate normalized CDF (cumulative density function)
     cdf = hist.cumsum()
     cdf_normal = cdf / cdf[-1]
     hist_normal = hist / cdf[-1]
 
     valid_range = np.nonzero(hist_normal)[0]
-    start, end = valid_range[0], valid_range[-1]
+    s_range = hist_normal[hist_normal != 0]
+    H_s_cum = -np.cumsum(s_range * np.log(s_range))
+
+    H_n = H_s_cum[-1]
 
     max_ent, threshold = 0, 0
-    total_range = hist_normal[hist_normal != 0]
-    H_n = -np.sum(total_range * np.log(total_range))
-    for s in range(start, end):
+    for i in range(len(H_s_cum) - 1): # 忽略最后一个非零点，防止P_s为1导致(1 - P_s)为0
+        s = valid_range[i]
         P_s = cdf_normal[s]
-        s_range = hist_normal[:s+1]
-        s_range = s_range[s_range != 0]
-        H_s = -np.sum(s_range * np.log(s_range))
+        H_s = H_s_cum[i]
         total_ent = np.log(P_s * (1 - P_s)) + H_s/P_s + (H_n - H_s)/(1 - P_s)
 
         # find max
