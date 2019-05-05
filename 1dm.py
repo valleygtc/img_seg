@@ -7,22 +7,20 @@ matplotlib.use("TkAgg")
 from matplotlib import pyplot as plt
 
 
-def max_entropy(hist):
+def max_entropy(hist_normal):
     """
     Implements Kapur-Sahoo-Wong (Maximum Entropy) thresholding method
     Kapur J.N., Sahoo P.K., and Wong A.K.C. (1985) "A New Method for Gray-Level Picture Thresholding Using the Entropy
     of the Histogram", Graphical Models and Image Processing, 29(3): 273-285
     参考：https://github.com/zenr/ippy/blob/master/segmentation/max_entropy.py
     Params:
-        hist [np.array]: 图像灰度直方图。（未归一化的）
+        hist_normal [np.array]: 归一化后的图像灰度直方图。
     Return:
         threshold [int]: threshold calculated by 一维最大熵算法
     """
 
     # calculate normalized CDF (cumulative density function)
-    cdf = hist.cumsum()
-    cdf_normal = cdf / cdf[-1]
-    hist_normal = hist / cdf[-1]
+    cdf_normal = hist_normal.cumsum()
 
     valid_range = np.nonzero(hist_normal)[0]
     s_range = hist_normal[hist_normal != 0]
@@ -49,7 +47,8 @@ if len(sys.argv) > 1:
 img = cv.imread(img_name, cv.IMREAD_GRAYSCALE)
 
 hist = cv.calcHist([img], [0], None, [256], [0,256])
-threshold = max_entropy(hist.ravel())
+hist_normal = cv.normalize(hist.ravel(), None, norm_type=cv.NORM_L1).ravel()
+threshold = max_entropy(hist_normal)
 _, thr_img = cv.threshold(img, threshold, 255, cv.THRESH_BINARY)
 
 # plot gray image, hist, thr_img
