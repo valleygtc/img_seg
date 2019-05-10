@@ -65,10 +65,13 @@ def calc_border_mask(img, T_percent):
     return border_mask
 
 
-def max_entropy_1d_ep(hist_normal): # TODO: 参数提取，缓存优化
+def max_entropy_1d_ep(hist_normal, group_num=10, iter_num=5, competition_q=9):
     """结合进化规划的一维最大熵算法：根据图像灰度直方图计算阈值。
     Params:
         hist_normal [np.array]: 归一化后的图像灰度直方图。
+        group_num [int]: 一个种群内个体数目
+        iter_num [int]:
+        competition_q [int]: q-竞争法选择下一代。
     Return:
         threshold [int]:
     """
@@ -84,13 +87,13 @@ def max_entropy_1d_ep(hist_normal): # TODO: 参数提取，缓存优化
 
     max_ent, threshold = 0, 0
     H_s_cum_len = len(H_s_cum)
-    group_idxs = np.random.randint(0, H_s_cum_len - 1, size=10) # 种群数为10
-
-    for i in range(30): # 迭代终止条件为：迭代次数30
-        group_s = valid_range[group_idxs]
-        group_P_s = cdf_normal[group_s]
-        group_H_s = H_s_cum[group_idxs]
-        group_ents = np.log(group_P_s * (1 - group_P_s)) + group_H_s/group_P_s + (H_n - group_H_s)/(1 - group_P_s)
+    # 初始种群
+    group_idxs = np.random.randint(0, H_s_cum_len - 1, size=group_num)
+    group_s = valid_range[group_idxs]
+    group_P_s = cdf_normal[group_s]
+    group_H_s = H_s_cum[group_idxs]
+    group_ents = np.log(group_P_s * (1 - group_P_s)) + group_H_s/group_P_s + (H_n - group_H_s)/(1 - group_P_s)
+    for i in range(iter_num): # 迭代终止条件为：迭代次数5
         # 变异
         new_group_idxs =  (np.round(group_idxs + np.random.sample(10) * np.sqrt(np.std(group_idxs))) % H_s_cum_len).astype(int)
         new_group_s = valid_range[new_group_idxs]
@@ -100,7 +103,7 @@ def max_entropy_1d_ep(hist_normal): # TODO: 参数提取，缓存优化
         # 选择：使用q-竞争法选择出I个个体组成的种群。
         total_group_idxs = np.concatenate((group_idxs, new_group_idxs))
         total_group_ents = np.concatenate((group_ents, new_group_ents))
-        q_test_group_ents = np.random.choice(total_group_ents, 9, replace=False)
+        q_test_group_ents = np.random.choice(total_group_ents, competition_q, replace=False)
         def test(ent, q_test_group_ents):
             score = 0
             for test_ent in q_test_group_ents:
@@ -109,8 +112,11 @@ def max_entropy_1d_ep(hist_normal): # TODO: 参数提取，缓存优化
             return score
 
         total_group_score = [test(ent, q_test_group_ents) for ent in total_group_ents]
-        survive_group_idxs = total_group_idxs[np.argsort(total_group_score)[-10:]]
+        survive_idxs = np.argsort(total_group_score)[-group_num:]
+        survive_group_idxs = total_group_idxs[survive_idxs]
+        survive_group_ents = total_group_ents[survive_idxs]
         group_idxs = survive_group_idxs
+        group_ents = survive_group_ents
 
     threshold = valid_range[group_idxs[-1]]
     return threshold
