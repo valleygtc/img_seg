@@ -95,7 +95,7 @@ def max_entropy_1d_ep(hist_normal, group_num=10, iter_num=5, competition_q=9):
     group_ents = np.log(group_P_s * (1 - group_P_s)) + group_H_s/group_P_s + (H_n - group_H_s)/(1 - group_P_s)
     for i in range(iter_num): # 迭代终止条件为：迭代次数5
         # 变异
-        new_group_idxs =  (np.round(group_idxs + np.random.sample(10) * np.sqrt(np.std(group_idxs))) % H_s_cum_len).astype(int)
+        new_group_idxs =  (np.round(group_idxs + np.random.sample(group_num) * np.sqrt(np.std(group_idxs))) % H_s_cum_len).astype(int)
         new_group_s = valid_range[new_group_idxs]
         new_group_P_s = cdf_normal[new_group_s]
         new_group_H_s = H_s_cum[new_group_idxs]
