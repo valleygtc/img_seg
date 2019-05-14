@@ -58,6 +58,8 @@ def calc_border_mask(img, T_percent):
     2. 选取边缘图像最大值的T_percent作为阈值对边缘图像做阈值处理，得到一幅二值图像。该二值图像即为结果（亮点即可认为是边缘附近的像素点）
     """
     lap_img = abs(cv.Laplacian(img, -1))
+    # lap_kernel = np.array([[1, 1, 1], [1, -8, 1], [1, 1, 1]])
+    # lap_img = abs(cv.filter2D(img, -1, lap_kernel))
     lap_hist = cv.calcHist([lap_img], [0], None, [256], [0,256])
 
     T = np.max(lap_img) * T_percent # 阈值取拉普拉斯图像中最大值的xx%
@@ -65,11 +67,11 @@ def calc_border_mask(img, T_percent):
     return border_mask
 
 
-def max_entropy_1d_ep(hist_normal, group_num=10, iter_num=5, competition_q=9):
+def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q=9):
     """结合进化规划的一维最大熵算法：根据图像灰度直方图计算阈值。
     Params:
         hist_normal [np.array]: 归一化后的图像灰度直方图。
-        group_num [int]: 一个种群内个体数目
+        population_size [int]: 一个种群内个体数目
         iter_num [int]:
         competition_q [int]: q-竞争法选择下一代。
     Return:
@@ -77,48 +79,56 @@ def max_entropy_1d_ep(hist_normal, group_num=10, iter_num=5, competition_q=9):
     """
 
     # calculate normalized CDF (cumulative density function)
-    cdf_normal = hist_normal.cumsum()
+    p_i = hist_normal
+    P_s = hist_normal.cumsum()
 
-    valid_range = np.nonzero(hist_normal)[0]
-    s_range = hist_normal[valid_range]
-    H_s_cum = -np.cumsum(s_range * np.log(s_range))
+    valid_i = np.nonzero(p_i)[0]
+    valid_p_i = p_i[valid_i]
+    valid_P_s = P_s[valid_i]
+    valid_H_s = -np.cumsum(valid_p_i * np.log(valid_p_i))
 
-    H_n = H_s_cum[-1]
+    H_n = valid_H_s[-1]
 
     max_ent, threshold = 0, 0
-    H_s_cum_len = len(H_s_cum)
+    valid_H_s_len = len(valid_H_s)
     # 初始种群
-    group_idxs = np.random.randint(0, H_s_cum_len - 1, size=group_num)
-    group_s = valid_range[group_idxs]
-    group_P_s = cdf_normal[group_s]
-    group_H_s = H_s_cum[group_idxs]
-    group_ents = np.log(group_P_s * (1 - group_P_s)) + group_H_s/group_P_s + (H_n - group_H_s)/(1 - group_P_s)
-    for i in range(iter_num): # 迭代终止条件为：迭代次数5
+    population_idxs = np.random.randint(0, valid_H_s_len - 1, size=population_size)
+    population_s = valid_i[population_idxs]
+    population_P_s = valid_P_s[population_idxs]
+    population_H_s = valid_H_s[population_idxs]
+    population_ents = np.log(population_P_s * (1 - population_P_s)) + \
+        population_H_s/population_P_s + \
+        (H_n - population_H_s)/(1 - population_P_s)
+    for i in range(iter_num): # 迭代终止条件为：指定的迭代次数
         # 变异
-        new_group_idxs =  (np.round(group_idxs + np.random.sample(group_num) * np.sqrt(np.std(group_idxs))) % H_s_cum_len).astype(int)
-        new_group_s = valid_range[new_group_idxs]
-        new_group_P_s = cdf_normal[new_group_s]
-        new_group_H_s = H_s_cum[new_group_idxs]
-        new_group_ents = np.log(group_P_s * (1 - group_P_s)) + group_H_s/group_P_s + (H_n - group_H_s)/(1 - group_P_s)
+        std = np.sqrt(cv.normalize(population_ents, None, 0, valid_H_s_len - 1, cv.NORM_MINMAX).ravel())
+        gauss_mutation = np.random.normal(0, 1, size=population_size) * std
+        new_population_idxs =  (np.round(population_idxs + gauss_mutation) % valid_H_s_len).astype(int)
+        new_population_s = valid_i[new_population_idxs]
+        new_population_P_s = valid_P_s[new_population_idxs]
+        new_population_H_s = valid_H_s[new_population_idxs]
+        new_population_ents = np.log(new_population_P_s * (1 - new_population_P_s)) + \
+            new_population_H_s/new_population_P_s + \
+            (H_n - new_population_H_s)/(1 - new_population_P_s)
         # 选择：使用q-竞争法选择出I个个体组成的种群。
-        total_group_idxs = np.concatenate((group_idxs, new_group_idxs))
-        total_group_ents = np.concatenate((group_ents, new_group_ents))
-        q_test_group_ents = np.random.choice(total_group_ents, competition_q, replace=False)
-        def test(ent, q_test_group_ents):
+        total_idxs = np.concatenate((population_idxs, new_population_idxs))
+        total_ents = np.concatenate((population_ents, new_population_ents))
+        q_test_ents = np.random.choice(total_ents, competition_q, replace=False)
+        def test(ent, q_test_ents):
             score = 0
-            for test_ent in q_test_group_ents:
+            for test_ent in q_test_ents:
                 if ent > test_ent:
                     score += 1
             return score
 
-        total_group_score = [test(ent, q_test_group_ents) for ent in total_group_ents]
-        survive_idxs = np.argsort(total_group_score)[-group_num:]
-        survive_group_idxs = total_group_idxs[survive_idxs]
-        survive_group_ents = total_group_ents[survive_idxs]
-        group_idxs = survive_group_idxs
-        group_ents = survive_group_ents
+        total_scores = [test(ent, q_test_ents) for ent in total_ents]
+        survive_idxs = np.argsort(total_scores)[-population_size:]
+        survive_population_idxs = total_idxs[survive_idxs]
+        survive_population_ents = total_ents[survive_idxs]
+        population_idxs = survive_population_idxs
+        population_ents = survive_population_ents
 
-    threshold = valid_range[group_idxs[-1]]
+    threshold = valid_i[population_idxs[-1]]
     return threshold
 
 

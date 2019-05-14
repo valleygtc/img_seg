@@ -19,7 +19,7 @@ if __name__ == '__main__':
     masked_img_hist = cv.calcHist([img], [0], border_mask, [256], [0,256])
     masked_img_hist_normal = cv.normalize(masked_img_hist.ravel(), None, norm_type=cv.NORM_L1).ravel()
 
-    threshold = max_entropy_1d_ep(masked_img_hist_normal, group_num=20, iter_num=5)
+    threshold = max_entropy_1d_ep(masked_img_hist_normal, population_size=10, iter_num=10)
     _, thr_img = cv.threshold(img, threshold, 255, cv.THRESH_BINARY)
 
     # plot original gray image, hist, thr_img
