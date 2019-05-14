@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv
+import ep
 
 
 def max_entropy_1d(hist_normal):
@@ -80,7 +81,7 @@ def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q
 
     # calculate normalized CDF (cumulative density function)
     p_i = hist_normal
-    P_s = hist_normal.cumsum()
+    P_s = p_i.cumsum()
 
     valid_i = np.nonzero(p_i)[0]
     valid_p_i = p_i[valid_i]
@@ -89,46 +90,36 @@ def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q
 
     H_n = valid_H_s[-1]
 
+    def calc_ents(valid_i_idxs):
+        P_s = valid_P_s[valid_i_idxs]
+        H_s = valid_H_s[valid_i_idxs]
+        ents = np.log(P_s * (1 - P_s)) + H_s/P_s + (H_n - H_s)/(1 - P_s)
+        return ents
+
+    # 将valid_i_idx作为搜索空间来使用进化规划搜索最优解。
     max_ent, threshold = 0, 0
-    valid_H_s_len = len(valid_H_s)
+    valid_i_len = len(valid_i)
     # 初始种群
-    population_idxs = np.random.randint(0, valid_H_s_len - 1, size=population_size)
-    population_s = valid_i[population_idxs]
-    population_P_s = valid_P_s[population_idxs]
-    population_H_s = valid_H_s[population_idxs]
-    population_ents = np.log(population_P_s * (1 - population_P_s)) + \
-        population_H_s/population_P_s + \
-        (H_n - population_H_s)/(1 - population_P_s)
+    valid_i_idxs = ep.get_init_population(np.arange(0, valid_i_len), population_size)
+    ents = calc_ents(valid_i_idxs)
     for i in range(iter_num): # 迭代终止条件为：指定的迭代次数
         # 变异
-        std = np.sqrt(cv.normalize(population_ents, None, 0, valid_H_s_len - 1, cv.NORM_MINMAX).ravel())
-        gauss_mutation = np.random.normal(0, 1, size=population_size) * std
-        new_population_idxs =  (np.round(population_idxs + gauss_mutation) % valid_H_s_len).astype(int)
-        new_population_s = valid_i[new_population_idxs]
-        new_population_P_s = valid_P_s[new_population_idxs]
-        new_population_H_s = valid_H_s[new_population_idxs]
-        new_population_ents = np.log(new_population_P_s * (1 - new_population_P_s)) + \
-            new_population_H_s/new_population_P_s + \
-            (H_n - new_population_H_s)/(1 - new_population_P_s)
+        new_valid_i_idxs =  ep.mutate(
+            valid_i_idxs, 
+            fitnesses=cv.normalize(ents, None, 0, valid_i_len - 1, cv.NORM_MINMAX).ravel(),
+            beta=1,
+            gamma=0) % valid_i_len
+        new_ents = calc_ents(new_valid_i_idxs)
         # 选择：使用q-竞争法选择出I个个体组成的种群。
-        total_idxs = np.concatenate((population_idxs, new_population_idxs))
-        total_ents = np.concatenate((population_ents, new_population_ents))
-        q_test_ents = np.random.choice(total_ents, competition_q, replace=False)
-        def test(ent, q_test_ents):
-            score = 0
-            for test_ent in q_test_ents:
-                if ent > test_ent:
-                    score += 1
-            return score
+        total_valid_i_idxs = np.concatenate((valid_i_idxs, new_valid_i_idxs))
+        total_ents = np.concatenate((ents, new_ents))
+        survive_idxs = ep.select(total_ents, population_size, q=9)
+        survive_population = total_valid_i_idxs[survive_idxs]
+        survive_ents = total_ents[survive_idxs]
+        valid_i_idxs = survive_population
+        ents = survive_ents
 
-        total_scores = [test(ent, q_test_ents) for ent in total_ents]
-        survive_idxs = np.argsort(total_scores)[-population_size:]
-        survive_population_idxs = total_idxs[survive_idxs]
-        survive_population_ents = total_ents[survive_idxs]
-        population_idxs = survive_population_idxs
-        population_ents = survive_population_ents
-
-    threshold = valid_i[population_idxs[-1]]
+    threshold = valid_i[valid_i_idxs[-1]]
     return threshold
 
 
