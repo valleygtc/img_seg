@@ -98,7 +98,7 @@ def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q
 
     # 将valid_i_idx作为搜索空间来使用进化规划搜索最优解。
     max_ent, threshold = 0, 0
-    valid_i_len = len(valid_i)
+    valid_i_len = len(valid_i) - 1# 忽略最后一个非零点，防止P_s为1导致(1 - P_s)为0
     # 初始种群
     valid_i_idxs = ep.get_init_population(np.arange(0, valid_i_len), population_size)
     ents = calc_ents(valid_i_idxs)
