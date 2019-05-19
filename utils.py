@@ -129,27 +129,25 @@ def max_entropy_2d(hist_2d):
     Implements AHMED S. ABLJTALEB* (2d Maximum Entropy) thresholding method.
     paper: AHMED S. ABLJTALEB* (1989) "Automatic Thresholding of Gray-Level Pictures Using Two-Dimensional Entropy"
     Params:
-        hist_2d [np.array]: 归一化后的二维直方图，i：像素灰度值，j：像素3*3邻域平均灰度值。
+        hist_2d [np.array]: 归一化后的二维直方图，i, j为两个描绘子。一般维i：像素灰度值，j：像素x*x邻域平均灰度值。
     Return:
         threshold [int]: threshold calculated by 2维最大熵算法
     """
 
-    nonzero_idxs = np.nonzero(hist_2d)
-    i_start, i_end = nonzero_idxs[0][0], nonzero_idxs[0][-1]
-    j_start, j_end = nonzero_idxs[1][0], nonzero_idxs[1][-1]
+    valid_idxs = np.nonzero(hist_2d)
 
-    total_range = hist_2d[nonzero_idxs]
-    H_mm = -np.sum(total_range * np.log(total_range))
+    valid_p_ij = hist_2d[valid_idxs]
+    p_ij_cum = np.cumsum(valid_p_ij)
+    H_s_cum = -np.cumsum(valid_p_ij * np.log(valid_p_ij))
+    H_mm = H_s_cum[-1]
     max_ent, threshold = 0, 0
-    for i in range(i_start, i_end):
-        for j in range(j_start, j_end):
-            st_range = hist_2d[:i+1,:j+1]
-            st_range = st_range[st_range != 0]
-            P_st = np.sum(st_range) #?为什么论文中这里是负的？
-            H_st = -np.sum(st_range * np.log(st_range))
-            total_ent = np.log(P_st * (1 - P_st)) + H_st/P_st + (H_mm - H_st)/(1 - P_st)
-            # find max
-            if total_ent > max_ent:
-                max_ent, threshold = total_ent, i
+    for i in range(len(valid_p_ij) - 1):  # 忽略最后一个非零点，防止P_st为1导致(1 - P_st)为0
+        s, t = valid_idxs[0][i], valid_idxs[1][i]
+        P_st = p_ij_cum[i] #?为什么论文中这里是负的？
+        H_st = H_s_cum[i]
+        total_ent = np.log(P_st * (1 - P_st)) + H_st/P_st + (H_mm - H_st)/(1 - P_st)
+        # find max
+        if total_ent > max_ent:
+            max_ent, threshold = total_ent, s
 
     return threshold
