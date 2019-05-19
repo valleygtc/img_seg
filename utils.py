@@ -5,27 +5,29 @@ import ep
 
 def max_entropy_1d(hist_normal):
     """
-    Implements Kapur-Sahoo-Wong (Maximum Entropy) thresholding method
-    Kapur J.N., Sahoo P.K., and Wong A.K.C. (1985) "A New Method for Gray-Level Picture Thresholding Using the Entropy
-    of the Histogram", Graphical Models and Image Processing, 29(3): 273-285
+    Implement Kapur-Sahoo-Wong (1d Maximum Entropy) thresholding method.
+    paper: J. N. KAPUR, P. K. SAHOO, A. K. C. WONG.
+    A New Method for Gray-Level Picture Thresholding Using the Entropy of the Histogram[J].
+    COMPUTER VISION, GRAPHICS, AND IMAGE PROCESSING, 1985, 29:273-285.
+
     Params:
         hist_normal [1d np.array]: 归一化后的图像灰度直方图。
     Return:
-        threshold [int]:
+        threshold [int]
     """
 
     # calculate normalized CDF (cumulative density function)
     cdf_normal = hist_normal.cumsum()
 
-    valid_range = np.nonzero(hist_normal)[0]
-    s_range = hist_normal[hist_normal != 0]
-    H_s_cum = -np.cumsum(s_range * np.log(s_range))
+    valid_idxs = np.nonzero(hist_normal)[0]
+    valid_p_i = hist_normal[valid_idxs]
+    H_s_cum = -np.cumsum(valid_p_i * np.log(valid_p_i))
 
     H_n = H_s_cum[-1]
 
     max_ent, threshold = 0, 0
-    for i in range(len(H_s_cum) - 1): # 忽略最后一个非零点，防止P_s为1导致(1 - P_s)为0
-        s = valid_range[i]
+    for i in range(len(valid_idxs) - 1): # 忽略最后一个非零点，防止P_s为1导致(1 - P_s)为0
+        s = valid_idxs[i]
         P_s = cdf_normal[s]
         H_s = H_s_cum[i]
         total_ent = np.log(P_s * (1 - P_s)) + H_s/P_s + (H_n - H_s)/(1 - P_s)
@@ -79,7 +81,6 @@ def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q
         threshold [int]:
     """
 
-    # calculate normalized CDF (cumulative density function)
     p_i = hist_normal
     P_s = p_i.cumsum()
 
@@ -125,19 +126,19 @@ def max_entropy_1d_ep(hist_normal, population_size=10, iter_num=5, competition_q
 
 def max_entropy_2d(hist_2d):
     """
-    Implements AHMED S. ABLJTALEB* (2d Maximum Entropy) thresholding method
-    AHMED S. ABLJTALEB* (1989) "Automatic Thresholding of Gray-Level Pictures Using Two-Dimensional Entropy"
+    Implements AHMED S. ABLJTALEB* (2d Maximum Entropy) thresholding method.
+    paper: AHMED S. ABLJTALEB* (1989) "Automatic Thresholding of Gray-Level Pictures Using Two-Dimensional Entropy"
     Params:
         hist_2d [np.array]: 归一化后的二维直方图，i：像素灰度值，j：像素3*3邻域平均灰度值。
     Return:
         threshold [int]: threshold calculated by 2维最大熵算法
     """
 
-    nonzero_indices = np.nonzero(hist_2d)
-    i_start, i_end = nonzero_indices[0][0], nonzero_indices[0][-1]
-    j_start, j_end = nonzero_indices[1][0], nonzero_indices[1][-1]
+    nonzero_idxs = np.nonzero(hist_2d)
+    i_start, i_end = nonzero_idxs[0][0], nonzero_idxs[0][-1]
+    j_start, j_end = nonzero_idxs[1][0], nonzero_idxs[1][-1]
 
-    total_range = hist_2d[hist_2d != 0]
+    total_range = hist_2d[nonzero_idxs]
     H_mm = -np.sum(total_range * np.log(total_range))
     max_ent, threshold = 0, 0
     for i in range(i_start, i_end):
