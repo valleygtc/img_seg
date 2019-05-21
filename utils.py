@@ -63,7 +63,6 @@ def calc_border_mask(img, T_percent):
     lap_img = abs(cv.Laplacian(img, -1))
     # lap_kernel = np.array([[1, 1, 1], [1, -8, 1], [1, 1, 1]])
     # lap_img = abs(cv.filter2D(img, -1, lap_kernel))
-    lap_hist = cv.calcHist([lap_img], [0], None, [256], [0,256])
 
     T = np.max(lap_img) * T_percent # 阈值取拉普拉斯图像中最大值的xx%
     _, border_mask = cv.threshold(lap_img, T, 255, cv.THRESH_BINARY)
